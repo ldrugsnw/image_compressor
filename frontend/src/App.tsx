@@ -1,7 +1,8 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 
 
-const API_URL = "http://localhost:8000/images/compress";
+const API_URL =
+  "https://didactic-potato-7v7wxxqvgx5p347w-8000.app.github.dev/images/compress";
 
 
 function App() {

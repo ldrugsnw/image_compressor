@@ -15,7 +15,11 @@ app = FastAPI(title="Image Compressor API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://didactic-potato-7v7wxxqvgx5p347w-5173.app.github.dev",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,7 +59,7 @@ async def compress_image(
     try:
         compressed_bytes = compress_jpeg(
             image_bytes=image_bytes,
-            target_size_bytes=target_size_kb * 1024,
+            target_size_bytes=target_size_kb * 1000,
         )
     except (InvalidImageError, TargetSizeUnreachableError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
