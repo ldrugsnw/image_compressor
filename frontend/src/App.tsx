@@ -5,6 +5,15 @@ const API_URL =
   "https://didactic-potato-7v7wxxqvgx5p347w-8000.app.github.dev/images/compress";
 
 
+function formatFileSize(sizeInBytes: number) {
+  if (sizeInBytes >= 1_000_000) {
+    return `${(sizeInBytes / 1_000_000).toFixed(2)} MB`;
+  }
+
+  return `${(sizeInBytes / 1_000).toFixed(1)} KB`;
+}
+
+
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [targetSizeKb, setTargetSizeKb] = useState("");
@@ -12,6 +21,7 @@ function App() {
   const [error, setError] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [downloadName, setDownloadName] = useState("");
+  const [compressedSize, setCompressedSize] = useState<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -24,6 +34,7 @@ function App() {
   function clearDownload() {
     setDownloadUrl("");
     setDownloadName("");
+    setCompressedSize(null);
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -86,6 +97,7 @@ function App() {
       const compressedBlob = await response.blob();
       setDownloadUrl(URL.createObjectURL(compressedBlob));
       setDownloadName(`${file.name.replace(/\.[^.]+$/, "")}_compressed.jpg`);
+      setCompressedSize(compressedBlob.size);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -114,7 +126,7 @@ function App() {
 
         {file && (
           <p className="file-info">
-            {file.name} · {(file.size / 1024).toFixed(1)} KB
+            {file.name} · {formatFileSize(file.size)}
           </p>
         )}
 
@@ -141,10 +153,20 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      {downloadUrl && (
-        <a className="download" href={downloadUrl} download={downloadName}>
-          압축된 이미지 다운로드
-        </a>
+      {downloadUrl && compressedSize !== null && file && (
+        <>
+          <p>
+            압축 완료: {formatFileSize(file.size)} →{" "}
+            {formatFileSize(compressedSize)}
+            <br />
+            {file.size === compressedSize
+              ? "파일 크기가 변경되지 않았습니다."
+              : `${((1 - compressedSize / file.size) * 100).toFixed(1)}% 감소`}
+          </p>
+          <a className="download" href={downloadUrl} download={downloadName}>
+            압축된 이미지 다운로드
+          </a>
+        </>
       )}
     </main>
   );
