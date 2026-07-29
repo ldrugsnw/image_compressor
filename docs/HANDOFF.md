@@ -105,17 +105,13 @@ agent/show-compression-results
 1abe85c feat: 압축 전후 파일 크기와 감소율 표시
 ```
 
-원격 브랜치에 푸시되어 있으며 다음 Draft PR이 열려 있습니다.
+기능 변경은 다음 PR을 통해 `main`에 병합되었습니다.
 
 - PR #1: https://github.com/ldrugsnw/image_compressor/pull/1
 - 대상 브랜치: `main`
-- 상태: Draft
+- 상태: 병합 완료
 
-Draft PR은 아직 `main`에 병합되지 않았습니다. 변경 내용을 확인한 다음
-`Ready for review`로 전환하고 병합할 수 있습니다.
-
-이 `docs/HANDOFF.md` 갱신은 위 커밋을 만든 뒤 수행했으므로 아직 커밋이나
-Draft PR에 포함되어 있지 않습니다.
+`docs/HANDOFF.md` 갱신은 PR #1이 병합된 뒤 별도 문서 변경으로 진행했습니다.
 
 작업 전부터 저장소 루트에 다음 미추적 파일이 존재했습니다.
 
@@ -166,10 +162,8 @@ GitHub Codespaces 주소가 직접 작성되어 있습니다. 새 Codespace를 �
 ## 다음 세션 시작점
 
 1. `git status -sb`로 현재 변경 상태를 확인합니다.
-2. `docs/HANDOFF.md` 변경을 기존 PR에 포함할지 결정합니다.
-3. PR #1의 `Files changed`에서 압축 결과 표시 변경을 확인합니다.
-4. 문제가 없으면 Draft PR을 `Ready for review`로 전환한 뒤 `main`에 병합합니다.
-5. 기능을 더 추가하기 전 현재 화면을 직접 실행하여 다음 두 경우를 확인합니다.
+2. 최신 `main`을 받아 현재 기능 커밋과 문서 커밋이 모두 반영됐는지 확인합니다.
+3. 기능을 더 추가하기 전 현재 화면을 직접 실행하여 다음 두 경우를 확인합니다.
    - 원본보다 작은 목표 용량: 전후 크기와 감소율 표시
    - 원본보다 큰 목표 용량: 크기가 변경되지 않았다는 메시지 표시
 
