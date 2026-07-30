@@ -28,6 +28,24 @@ form {
   margin-top: 2rem;
 }
 
+.file-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.drop-zone {
+  padding: 1.5rem;
+  border: 0.125rem dashed #9aa0a6;
+  border-radius: 0.5rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.drop-zone.dragging {
+  border-color: #146c43;
+  background: #e6f4ea;
+}
+
 input,
 button,
 .download {
