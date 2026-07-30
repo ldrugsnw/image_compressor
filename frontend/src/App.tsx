@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 
 
+const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
 const API_URL =
   "https://didactic-potato-7v7wxxqvgx5p347w-8000.app.github.dev/images/compress";
 
@@ -41,6 +42,13 @@ function App() {
     const selectedFile = event.target.files?.[0] ?? null;
     setError("");
     clearDownload();
+
+    if (selectedFile && selectedFile.size > MAX_UPLOAD_SIZE_BYTES) {
+      setFile(null);
+      setError("파일 용량은 10 MB 이하여야 합니다.");
+      event.target.value = "";
+      return;
+    }
 
     if (
       selectedFile &&

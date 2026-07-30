@@ -11,6 +11,9 @@ from .compressor import (
 )
 
 
+MAX_UPLOAD_SIZE_BYTES = 10_000_000
+
+
 app = FastAPI(title="Image Compressor API")
 
 app.add_middleware(
@@ -52,9 +55,14 @@ async def compress_image(
             detail="목표 용량은 0보다 큰 정수여야 합니다.",
         )
 
-    image_bytes = await file.read()
+    image_bytes = await file.read(MAX_UPLOAD_SIZE_BYTES + 1)
     if not image_bytes:
         raise HTTPException(status_code=400, detail="업로드한 파일이 비어 있습니다.")
+    if len(image_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="파일 용량은 10 MB 이하여야 합니다.",
+        )
 
     try:
         compressed_bytes = compress_jpeg(
