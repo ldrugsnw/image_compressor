@@ -1,9 +1,15 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 
 const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
-const API_URL =
-  "https://didactic-potato-7v7wxxqvgx5p347w-8000.app.github.dev/images/compress";
+const API_URL = "/api/images/compress";
 
 
 function formatFileSize(sizeInBytes: number) {
@@ -12,6 +18,40 @@ function formatFileSize(sizeInBytes: number) {
   }
 
   return `${(sizeInBytes / 1_000).toFixed(1)} KB`;
+}
+
+function getErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          "msg" in item &&
+          typeof item.msg === "string"
+        ) {
+          const location =
+            "loc" in item && Array.isArray(item.loc)
+              ? item.loc
+                  .filter((part: unknown) => part !== "body")
+                  .join(".")
+              : "";
+
+          return location ? `${location}: ${item.msg}` : item.msg;
+        }
+
+        return null;
+      })
+      .filter((message): message is string => message !== null);
+
+    return messages.length > 0 ? messages.join(", ") : null;
+  }
+
+  return null;
 }
 
 
@@ -23,6 +63,8 @@ function App() {
   const [downloadUrl, setDownloadUrl] = useState("");
   const [downloadName, setDownloadName] = useState("");
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragEnterCount = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -38,16 +80,14 @@ function App() {
     setCompressedSize(null);
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFile = event.target.files?.[0] ?? null;
+  function selectFile(selectedFile: File | null) {
     setError("");
     clearDownload();
 
     if (selectedFile && selectedFile.size > MAX_UPLOAD_SIZE_BYTES) {
       setFile(null);
       setError("파일 용량은 10 MB 이하여야 합니다.");
-      event.target.value = "";
-      return;
+      return false;
     }
 
     if (
@@ -56,17 +96,65 @@ function App() {
     ) {
       setFile(null);
       setError("JPEG 파일만 선택할 수 있습니다.");
-      event.target.value = "";
-      return;
+      return false;
     }
 
     setFile(selectedFile);
+    return true;
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0] ?? null;
+
+    if (!selectFile(selectedFile)) {
+      event.target.value = "";
+    }
+  }
+
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragEnterCount.current = 0;
+    setIsDragging(false);
+
+    const fileFromItem =
+      Array.from(event.dataTransfer.items)
+        .find((item) => item.kind === "file")
+        ?.getAsFile() ?? null;
+    const droppedFile = fileFromItem ?? event.dataTransfer.files[0] ?? null;
+
+    if (!droppedFile) {
+      setFile(null);
+      setError("드롭한 파일을 읽을 수 없습니다.");
+      clearDownload();
+      return;
+    }
+
+    try {
+      const fileType =
+        droppedFile.type ||
+        (/\.jpe?g$/i.test(droppedFile.name) ? "image/jpeg" : "");
+      const stableFile = new File(
+        [await droppedFile.arrayBuffer()],
+        droppedFile.name,
+        {
+          type: fileType,
+          lastModified: droppedFile.lastModified,
+        },
+      );
+
+      selectFile(stableFile);
+    } catch {
+      setFile(null);
+      setError("드롭한 파일을 읽을 수 없습니다.");
+      clearDownload();
+    }
   }
 
   async function readErrorMessage(response: Response): Promise<string> {
     try {
-      const body = (await response.json()) as { detail?: string };
-      return body.detail ?? "압축 요청에 실패했습니다.";
+      const body = (await response.json()) as { detail?: unknown };
+      return getErrorDetail(body.detail) ?? "압축 요청에 실패했습니다.";
     } catch {
       return "압축 요청에 실패했습니다.";
     }
@@ -123,14 +211,40 @@ function App() {
       <p>JPEG 이미지 한 장을 원하는 최대 용량 이하로 압축합니다.</p>
 
       <form onSubmit={handleSubmit}>
-        <label>
-          JPEG 이미지
+        <div className="file-field">
+          <label htmlFor="jpeg-file">JPEG 이미지</label>
+          <div
+            className={`drop-zone${isDragging ? " dragging" : ""}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              dragEnterCount.current += 1;
+              setIsDragging(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              dragEnterCount.current = Math.max(0, dragEnterCount.current - 1);
+
+              if (dragEnterCount.current === 0) {
+                setIsDragging(false);
+              }
+            }}
+            onDrop={handleDrop}
+          >
+            <span>JPEG 이미지를 이곳에 끌어다 놓으세요.</span>
+          </div>
           <input
+            id="jpeg-file"
             type="file"
             accept="image/jpeg,.jpg,.jpeg"
             onChange={handleFileChange}
           />
-        </label>
+        </div>
 
         {file && (
           <p className="file-info">
