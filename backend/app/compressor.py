@@ -3,7 +3,7 @@ from io import BytesIO
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-MIN_QUALITY = 1
+MIN_QUALITY = 60
 MAX_QUALITY = 95
 
 
@@ -12,7 +12,20 @@ class InvalidImageError(Exception):
 
 
 class TargetSizeUnreachableError(Exception):
-    """Raised when JPEG quality alone cannot reach the requested size."""
+    """Raised when the target cannot be reached even after resizing."""
+
+
+class ResizeRequiredError(Exception):
+    """Raised when reaching the target requires smaller image dimensions."""
+
+    def __init__(
+        self,
+        original_size: tuple[int, int],
+        suggested_size: tuple[int, int],
+    ) -> None:
+        super().__init__("목표 용량을 맞추려면 이미지 해상도를 줄여야 합니다.")
+        self.original_size = original_size
+        self.suggested_size = suggested_size
 
 
 def _open_jpeg(image_bytes: bytes) -> Image.Image:
@@ -40,7 +53,25 @@ def _encode_jpeg(image: Image.Image, quality: int) -> bytes:
     return buffer.getvalue()
 
 
-def compress_jpeg(image_bytes: bytes, target_size_bytes: int) -> bytes:
+def _suggest_resize(image: Image.Image, target_size_bytes: int) -> tuple[int, int]:
+    width, height = image.size
+
+    while width > 1 or height > 1:
+        width = max(1, int(width * 0.9))
+        height = max(1, int(height * 0.9))
+        resized_image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+        if len(_encode_jpeg(resized_image, MIN_QUALITY)) <= target_size_bytes:
+            return width, height
+
+    raise TargetSizeUnreachableError("목표 용량이 너무 작아 압축할 수 없습니다.")
+
+
+def compress_jpeg(
+    image_bytes: bytes,
+    target_size_bytes: int,
+    allow_resize: bool = False,
+) -> bytes:
     image = _open_jpeg(image_bytes)
 
     if len(image_bytes) <= target_size_bytes:
@@ -48,9 +79,16 @@ def compress_jpeg(image_bytes: bytes, target_size_bytes: int) -> bytes:
 
     lowest_quality_bytes = _encode_jpeg(image, MIN_QUALITY)
     if len(lowest_quality_bytes) > target_size_bytes:
-        raise TargetSizeUnreachableError(
-            "해상도를 변경하지 않고는 목표 용량 이하로 압축할 수 없습니다."
-        )
+        suggested_size = _suggest_resize(image, target_size_bytes)
+
+        if not allow_resize:
+            raise ResizeRequiredError(
+                original_size=image.size,
+                suggested_size=suggested_size,
+            )
+
+        image = image.resize(suggested_size, Image.Resampling.LANCZOS)
+        lowest_quality_bytes = _encode_jpeg(image, MIN_QUALITY)
 
     best_bytes = lowest_quality_bytes
     low = MIN_QUALITY + 1

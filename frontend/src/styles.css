@@ -93,6 +93,47 @@ button:disabled {
   color: #b3261e;
 }
 
+.resize-confirmation {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 0.125rem solid #ffb300;
+  border-radius: 0.5rem;
+  background: #fff8e1;
+  text-align: center;
+}
+
+.resize-confirmation p {
+  margin: 0;
+}
+
+.resize-dimensions {
+  padding-top: 0.75rem;
+  font-weight: 700;
+}
+
+.resize-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.resize-approve,
+.resize-reject {
+  border: 0;
+  border-radius: 0.375rem;
+  color: white;
+  font-weight: 700;
+}
+
+.resize-approve {
+  background: #00a63e;
+}
+
+.resize-reject {
+  background: #e0002b;
+}
+
 .previews {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

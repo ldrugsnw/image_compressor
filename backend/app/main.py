@@ -6,6 +6,7 @@ from fastapi.responses import Response
 
 from .compressor import (
     InvalidImageError,
+    ResizeRequiredError,
     TargetSizeUnreachableError,
     compress_jpeg,
 )
@@ -48,6 +49,7 @@ def _download_filename(original_filename: str | None) -> str:
 async def compress_image(
     file: UploadFile = File(...),
     target_size_kb: int = Form(...),
+    allow_resize: bool = Form(False),
 ) -> Response:
     if target_size_kb <= 0:
         raise HTTPException(
@@ -68,7 +70,22 @@ async def compress_image(
         compressed_bytes = compress_jpeg(
             image_bytes=image_bytes,
             target_size_bytes=target_size_kb * 1000,
+            allow_resize=allow_resize,
         )
+    except ResizeRequiredError as error:
+        original_width, original_height = error.original_size
+        suggested_width, suggested_height = error.suggested_size
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "resize_required",
+                "message": str(error),
+                "original_width": original_width,
+                "original_height": original_height,
+                "suggested_width": suggested_width,
+                "suggested_height": suggested_height,
+            },
+        ) from error
     except (InvalidImageError, TargetSizeUnreachableError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

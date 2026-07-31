@@ -12,6 +12,15 @@ const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
 const API_URL = "/api/images/compress";
 
 
+type ResizeProposal = {
+  message: string;
+  originalWidth: number;
+  originalHeight: number;
+  suggestedWidth: number;
+  suggestedHeight: number;
+};
+
+
 function formatFileSize(sizeInBytes: number) {
   if (sizeInBytes >= 1_000_000) {
     return `${(sizeInBytes / 1_000_000).toFixed(2)} MB`;
@@ -23,6 +32,15 @@ function formatFileSize(sizeInBytes: number) {
 function getErrorDetail(detail: unknown): string | null {
   if (typeof detail === "string") {
     return detail;
+  }
+
+  if (
+    typeof detail === "object" &&
+    detail !== null &&
+    "message" in detail &&
+    typeof detail.message === "string"
+  ) {
+    return detail.message;
   }
 
   if (Array.isArray(detail)) {
@@ -55,11 +73,44 @@ function getErrorDetail(detail: unknown): string | null {
 }
 
 
+function getResizeProposal(detail: unknown): ResizeProposal | null {
+  if (
+    typeof detail !== "object" ||
+    detail === null ||
+    !("code" in detail) ||
+    detail.code !== "resize_required" ||
+    !("message" in detail) ||
+    typeof detail.message !== "string" ||
+    !("original_width" in detail) ||
+    typeof detail.original_width !== "number" ||
+    !("original_height" in detail) ||
+    typeof detail.original_height !== "number" ||
+    !("suggested_width" in detail) ||
+    typeof detail.suggested_width !== "number" ||
+    !("suggested_height" in detail) ||
+    typeof detail.suggested_height !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    message: detail.message,
+    originalWidth: detail.original_width,
+    originalHeight: detail.original_height,
+    suggestedWidth: detail.suggested_width,
+    suggestedHeight: detail.suggested_height,
+  };
+}
+
+
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [targetSizeKb, setTargetSizeKb] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resizeProposal, setResizeProposal] = useState<ResizeProposal | null>(
+    null,
+  );
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
   const [originalDimensions, setOriginalDimensions] = useState<{
     width: number;
@@ -103,6 +154,7 @@ function App() {
     setDownloadName("");
     setCompressedSize(null);
     setCompressedDimensions(null);
+    setResizeProposal(null);
   }
 
   function selectFile(selectedFile: File | null) {
@@ -181,17 +233,25 @@ function App() {
     }
   }
 
-  async function readErrorMessage(response: Response): Promise<string> {
+  async function readErrorResponse(response: Response): Promise<{
+    message: string;
+    resizeProposal: ResizeProposal | null;
+  }> {
     try {
       const body = (await response.json()) as { detail?: unknown };
-      return getErrorDetail(body.detail) ?? "압축 요청에 실패했습니다.";
+      return {
+        message: getErrorDetail(body.detail) ?? "압축 요청에 실패했습니다.",
+        resizeProposal: getResizeProposal(body.detail),
+      };
     } catch {
-      return "압축 요청에 실패했습니다.";
+      return {
+        message: "압축 요청에 실패했습니다.",
+        resizeProposal: null,
+      };
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function requestCompression(allowResize: boolean) {
     setError("");
     clearDownload();
 
@@ -208,6 +268,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("target_size_kb", String(parsedTargetSize));
+    formData.append("allow_resize", String(allowResize));
 
     setIsLoading(true);
     try {
@@ -217,7 +278,14 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(await readErrorMessage(response));
+        const responseError = await readErrorResponse(response);
+
+        if (responseError.resizeProposal) {
+          setResizeProposal(responseError.resizeProposal);
+          return;
+        }
+
+        throw new Error(responseError.message);
       }
 
       const compressedBlob = await response.blob();
@@ -233,6 +301,11 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void requestCompression(false);
   }
 
   return (
@@ -318,6 +391,38 @@ function App() {
       </form>
 
       {error && <p className="error">{error}</p>}
+
+      {resizeProposal && (
+        <section className="resize-confirmation" aria-live="polite">
+          <p>{resizeProposal.message}</p>
+          <p className="resize-dimensions">
+            {resizeProposal.originalWidth} × {resizeProposal.originalHeight} px
+            {" → "}
+            {resizeProposal.suggestedWidth} × {resizeProposal.suggestedHeight} px
+          </p>
+          <div className="resize-actions">
+            <button
+              className="resize-approve"
+              type="button"
+              disabled={isLoading}
+              onClick={() => void requestCompression(true)}
+            >
+              해상도 축소 후 압축
+            </button>
+            <button
+              className="resize-reject"
+              type="button"
+              disabled={isLoading}
+              onClick={() => {
+                setResizeProposal(null);
+                setError("해상도 축소를 취소했습니다.");
+              }}
+            >
+              거절
+            </button>
+          </div>
+        </section>
+      )}
 
       {file && originalPreviewUrl && (
         <div className={`previews${downloadUrl ? "" : " single"}`}>
