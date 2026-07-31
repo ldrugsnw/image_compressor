@@ -74,6 +74,7 @@ function App() {
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragEnterCount = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!file) {
@@ -141,6 +142,10 @@ function App() {
     event.stopPropagation();
     dragEnterCount.current = 0;
     setIsDragging(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
 
     const fileFromItem =
       Array.from(event.dataTransfer.items)
@@ -263,7 +268,21 @@ function App() {
           >
             <span>JPEG 이미지를 이곳에 끌어다 놓으세요.</span>
           </div>
+          <div className="file-picker">
+            <button
+              className="file-select-button"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              파일 선택
+            </button>
+            <span className="selected-file-name">
+              {file?.name ?? "선택한 파일 없음"}
+            </span>
+          </div>
           <input
+            ref={fileInputRef}
+            className="file-input"
             id="jpeg-file"
             type="file"
             accept="image/jpeg,.jpg,.jpeg"
@@ -273,7 +292,7 @@ function App() {
 
         {file && (
           <p className="file-info">
-            {file.name} · {formatFileSize(file.size)}
+            파일 용량: {formatFileSize(file.size)}
           </p>
         )}
 
@@ -300,26 +319,26 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      {downloadUrl && compressedSize !== null && file && (
-        <>
-          <div className="previews">
-            <figure>
-              <figcaption>
-                원본
-                {originalDimensions &&
-                  ` · ${originalDimensions.width} × ${originalDimensions.height} px`}
-              </figcaption>
-              <img
-                src={originalPreviewUrl}
-                alt="압축 전 원본"
-                onLoad={(event) => {
-                  setOriginalDimensions({
-                    width: event.currentTarget.naturalWidth,
-                    height: event.currentTarget.naturalHeight,
-                  });
-                }}
-              />
-            </figure>
+      {file && originalPreviewUrl && (
+        <div className={`previews${downloadUrl ? "" : " single"}`}>
+          <figure>
+            <figcaption>
+              원본
+              {originalDimensions &&
+                ` · ${originalDimensions.width} × ${originalDimensions.height} px`}
+            </figcaption>
+            <img
+              src={originalPreviewUrl}
+              alt="압축 전 원본"
+              onLoad={(event) => {
+                setOriginalDimensions({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                });
+              }}
+            />
+          </figure>
+          {downloadUrl && compressedSize !== null && (
             <figure>
               <figcaption>
                 압축 결과
@@ -337,7 +356,12 @@ function App() {
                 }}
               />
             </figure>
-          </div>
+          )}
+        </div>
+      )}
+
+      {downloadUrl && compressedSize !== null && file && (
+        <>
           <p className="compression-summary">
             압축 완료: {formatFileSize(file.size)} →{" "}
             {formatFileSize(compressedSize)}

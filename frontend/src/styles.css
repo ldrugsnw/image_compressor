@@ -33,6 +33,29 @@ form {
   gap: 0.5rem;
 }
 
+.file-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-select-button {
+  flex: none;
+  cursor: pointer;
+}
+
+.selected-file-name {
+  overflow: hidden;
+  color: #5f6368;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .drop-zone {
   padding: 1.5rem;
   border: 0.125rem dashed #9aa0a6;
@@ -79,6 +102,11 @@ button:disabled {
 
 .previews figure {
   margin: 0;
+}
+
+.previews.single figure {
+  width: min(100%, 20rem);
+  margin: 0 auto;
 }
 
 .previews figcaption {
