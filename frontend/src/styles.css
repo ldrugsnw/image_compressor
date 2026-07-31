@@ -70,6 +70,31 @@ button:disabled {
   color: #b3261e;
 }
 
+.previews {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.previews figure {
+  margin: 0;
+}
+
+.previews figcaption {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.previews img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.5rem;
+  background: #f5f6f8;
+  object-fit: contain;
+}
+
 .download {
   display: inline-block;
   margin-top: 1rem;

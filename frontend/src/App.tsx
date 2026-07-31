@@ -60,11 +60,26 @@ function App() {
   const [targetSizeKb, setTargetSizeKb] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [downloadName, setDownloadName] = useState("");
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragEnterCount = useRef(0);
+
+  useEffect(() => {
+    if (!file) {
+      setOriginalPreviewUrl("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setOriginalPreviewUrl(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [file]);
 
   useEffect(() => {
     return () => {
@@ -277,6 +292,16 @@ function App() {
 
       {downloadUrl && compressedSize !== null && file && (
         <>
+          <div className="previews">
+            <figure>
+              <figcaption>원본</figcaption>
+              <img src={originalPreviewUrl} alt="압축 전 원본" />
+            </figure>
+            <figure>
+              <figcaption>압축 결과</figcaption>
+              <img src={downloadUrl} alt="압축 결과" />
+            </figure>
+          </div>
           <p>
             압축 완료: {formatFileSize(file.size)} →{" "}
             {formatFileSize(compressedSize)}
