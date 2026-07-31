@@ -95,6 +95,11 @@ button:disabled {
   object-fit: contain;
 }
 
+.compression-summary {
+  text-align: center;
+  font-weight: 600;
+}
+
 .download {
   display: inline-block;
   margin-top: 1rem;

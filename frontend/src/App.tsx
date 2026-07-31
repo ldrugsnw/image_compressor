@@ -61,9 +61,17 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
+  const [originalDimensions, setOriginalDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
   const [downloadName, setDownloadName] = useState("");
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
+  const [compressedDimensions, setCompressedDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragEnterCount = useRef(0);
 
@@ -93,10 +101,12 @@ function App() {
     setDownloadUrl("");
     setDownloadName("");
     setCompressedSize(null);
+    setCompressedDimensions(null);
   }
 
   function selectFile(selectedFile: File | null) {
     setError("");
+    setOriginalDimensions(null);
     clearDownload();
 
     if (selectedFile && selectedFile.size > MAX_UPLOAD_SIZE_BYTES) {
@@ -294,21 +304,43 @@ function App() {
         <>
           <div className="previews">
             <figure>
-              <figcaption>원본</figcaption>
-              <img src={originalPreviewUrl} alt="압축 전 원본" />
+              <figcaption>
+                원본
+                {originalDimensions &&
+                  ` · ${originalDimensions.width} × ${originalDimensions.height} px`}
+              </figcaption>
+              <img
+                src={originalPreviewUrl}
+                alt="압축 전 원본"
+                onLoad={(event) => {
+                  setOriginalDimensions({
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  });
+                }}
+              />
             </figure>
             <figure>
-              <figcaption>압축 결과</figcaption>
-              <img src={downloadUrl} alt="압축 결과" />
+              <figcaption>
+                압축 결과
+                {compressedDimensions &&
+                  ` · ${compressedDimensions.width} × ${compressedDimensions.height} px`}
+              </figcaption>
+              <img
+                src={downloadUrl}
+                alt="압축 결과"
+                onLoad={(event) => {
+                  setCompressedDimensions({
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  });
+                }}
+              />
             </figure>
           </div>
-          <p>
+          <p className="compression-summary">
             압축 완료: {formatFileSize(file.size)} →{" "}
             {formatFileSize(compressedSize)}
-            <br />
-            {file.size === compressedSize
-              ? "파일 크기가 변경되지 않았습니다."
-              : `${((1 - compressedSize / file.size) * 100).toFixed(1)}% 감소`}
           </p>
           <a className="download" href={downloadUrl} download={downloadName}>
             압축된 이미지 다운로드
