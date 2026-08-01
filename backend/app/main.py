@@ -24,6 +24,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://didactic-potato-7v7wxxqvgx5p347w-5173.app.github.dev",
+        "https://image-compressor-1-4hh2.onrender.com",
     ],
     allow_methods=["*"],
     allow_headers=["*"],
