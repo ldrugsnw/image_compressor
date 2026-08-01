@@ -403,6 +403,7 @@ function App() {
       <form onSubmit={handleSubmit}>
         <div className="file-field">
           <label htmlFor="image-file">JPEG, PNG 또는 WebP 이미지</label>
+          <small className="file-size-limit">파일 크기는 10MB 이하여야 합니다.</small>
           <div
             className={`drop-zone${isDragging ? " dragging" : ""}`}
             onDragEnter={(event) => {

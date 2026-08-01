@@ -33,6 +33,11 @@ form {
   gap: 0.5rem;
 }
 
+.file-size-limit {
+  color: #5f6368;
+  font-size: 0.8rem;
+}
+
 .file-picker {
   display: flex;
   align-items: center;
