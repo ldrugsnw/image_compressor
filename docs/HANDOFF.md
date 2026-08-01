@@ -5,6 +5,8 @@
 ## 프로젝트 현재 상태
 
 Image Compressor MVP와 정적 불투명 PNG·WebP 입력 확장 기능이 정상 동작합니다.
+프론트엔드는 Render Static Site, 백엔드는 Render Web Service로 공개 배포되어
+GitHub `main` 브랜치의 변경을 자동 배포합니다.
 
 사용자는 JPEG 또는 정적 불투명 PNG·WebP 이미지 한 장을 파일 선택 또는 Drag &
 Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. PNG는 사용자가 형식
@@ -34,6 +36,9 @@ quality 조절만으로 목표를 달성할 수 없으면
 - 압축 결과 다운로드
 - 핵심 JPEG 압축 동작 자동 테스트
 - 정적 불투명·투명·애니메이션 WebP 동작 자동 테스트
+- Render Static Site와 Web Service 공개 배포
+- 로컬 Vite 프록시와 배포용 `VITE_API_URL` 분기
+- Render 프론트엔드 출처의 FastAPI CORS 허용
 
 현재 의도적으로 구현하지 않는 기능:
 
@@ -50,8 +55,8 @@ quality 조절만으로 목표를 달성할 수 없으면
 로그인, 데이터베이스, 클라우드 저장은 단순한 미구현 항목이 아니라 현재 제품
 방향의 비목표입니다. 이 서비스는 이미지를 요청 중 메모리에서만 처리하고 바로
 다운로드하는 일회성 도구입니다. 압축 이력, 여러 기기 간 공유, 팀 기능 또는
-과금 요구가 실제로 생길 때만 해당 기능을 다시 검토합니다. 서비스 공개 배포는
-저장 기능과 분리하여 필요할 때 별도로 검토합니다.
+과금 요구가 실제로 생길 때만 해당 기능을 다시 검토합니다. 공개 배포 후에도
+이미지는 저장하지 않고 각 요청 중 메모리에서만 처리합니다.
 
 ## 주요 실행 파일
 
@@ -63,6 +68,8 @@ quality 조절만으로 목표를 달성할 수 없으면
   - `FormData` 생성과 압축 API 요청
   - HTTP 409 형식 변환·축소 제안 해석과 승인·거절 처리
   - 압축 결과 용량 표시와 다운로드
+  - `VITE_API_URL`이 있으면 배포 백엔드 주소를 사용하고, 없으면 기존
+    `/api/images/compress` 사용
 - `frontend/src/styles.css`
   - Drag & Drop, 미리보기 및 결과 화면 스타일
   - 축소 승인 안내와 초록색 승인·빨간색 거절 버튼
@@ -74,6 +81,7 @@ quality 조절만으로 목표를 달성할 수 없으면
   - PNG의 JPEG 변환 승인 여부를 나타내는 `allow_format_conversion` 처리
   - 축소 승인 여부를 나타내는 `allow_resize` 처리
   - 변환 또는 축소 승인이 필요할 때 HTTP 409 반환
+  - 로컬 개발 주소와 Render Static Site 주소의 CORS 허용
 - `backend/app/compressor.py`
   - 실제 JPEG·PNG·WebP 형식과 손상 이미지 확인
   - PNG·WebP 애니메이션과 투명 픽셀 검사
@@ -94,9 +102,10 @@ quality 조절만으로 목표를 달성할 수 없으면
 5. 사용자가 목표 용량을 양의 정수 KB로 입력합니다.
 6. 프론트엔드는 `file`, `target_size_kb`, `allow_resize=false`,
    `allow_format_conversion=false`를 `FormData`에 넣어
-   `POST /api/images/compress`를 요청합니다.
-7. Vite 프록시가 `/api`를 제거하고 FastAPI의
-   `POST /images/compress`로 전달합니다.
+   압축 API를 요청합니다.
+7. 로컬에서는 `POST /api/images/compress`를 Vite 프록시가 전달합니다. 배포
+   환경에서는 빌드 시 설정한 `VITE_API_URL`을 사용해 Render Web Service의
+   `POST /images/compress`로 직접 요청합니다.
 8. 백엔드는 목표 KB를 1000배 하여 바이트 단위로 변환합니다.
 9. `compress_to_jpeg()`은 실제 JPEG·PNG·WebP 형식을 확인하고, PNG·WebP의
    애니메이션과 투명 픽셀을 거절합니다.
@@ -182,6 +191,37 @@ PNG 형식 변환 승인 필요 응답:
 - 해상도를 줄여도 달성할 수 없을 정도로 작은 목표
 
 ## 최근 구현 내용
+
+### Render 공개 배포
+
+프론트엔드는 Render Static Site, 백엔드는 Render Web Service로 배포했습니다.
+Vite 개발 환경에서는 기존 `/api/images/compress`와 개발 프록시를 유지하고,
+배포 빌드에서는 공개 백엔드 주소를 담은 `VITE_API_URL`을 사용합니다. 환경변수가
+없으면 기존 로컬 주소로 동작합니다.
+
+배포된 서비스:
+
+```text
+프론트엔드: https://image-compressor-1-4hh2.onrender.com
+백엔드: https://image-compressor-icyo.onrender.com
+```
+
+FastAPI CORS에는 실제 Render Static Site 출처를 추가했습니다. Static Site에서
+`VITE_API_URL`을 처음 누락해 요청이 `/api/images/compress`로 향했으나,
+환경변수를 설정하고 빌드 캐시를 지운 뒤 재배포하여 해결했습니다. 배포된
+JavaScript에 백엔드 주소가 포함된 것과 CORS preflight HTTP 200 응답을
+확인했습니다.
+
+관련 커밋:
+
+```text
+6b630b0 feat: 배포 환경 API 주소 지원
+64fadba chore: Render 프런트 CORS 허용
+```
+
+Render 무료 Web Service는 인바운드 요청 없이 15분이 지나면 내려가며, 다음
+요청에서 다시 시작하는 데 약 1분이 걸릴 수 있습니다. Static Site는 이 cold
+start 대상이 아닙니다.
 
 ### 압축 전후 미리보기와 해상도
 
@@ -293,6 +333,15 @@ npm run build
 
 TypeScript 검사와 Vite 프로덕션 빌드가 통과했습니다.
 
+Render 배포 검증:
+
+```text
+백엔드 GET / 상태 확인 성공
+Render 프론트 출처의 CORS preflight HTTP 200 확인
+배포된 프론트 JavaScript의 VITE_API_URL 반영 확인
+사용자의 배포 환경 압축·승인·다운로드 확인
+```
+
 사용자가 실제 JPEG로 다음 흐름을 확인했습니다.
 
 ```text
@@ -345,20 +394,27 @@ npm run dev -- --host 0.0.0.0
 - FastAPI API 문서: `http://localhost:8000/docs`
 - Vite 프론트엔드: `http://localhost:5173`
 
+배포 주소:
+
+- Render 프론트엔드: `https://image-compressor-1-4hh2.onrender.com`
+- Render 백엔드 상태 확인: `https://image-compressor-icyo.onrender.com`
+- Render 백엔드 API 문서: `https://image-compressor-icyo.onrender.com/docs`
+
 ## Git 상태
 
 현재 브랜치는 `main`이며 `origin/main`과 같은 커밋을 가리킵니다.
 
 ```text
-8e26422 feat: 업로드 파일 크기 제한 안내 추가
-f273ce9 feat: 승인 기반 PNG JPEG 변환 추가
+64fadba chore: Render 프런트 CORS 허용
+6b630b0 feat: 배포 환경 API 주소 지원
 ```
 
-현재 커밋하지 않은 추적 변경은 이 인수인계 문서의 최신화뿐입니다. 미추적 항목은
-다음과 같습니다.
+현재 커밋하지 않은 추적 변경은 이 인수인계 문서의 최신화뿐입니다. 문서 커밋 후
+남는 미추적 항목은 다음과 같습니다.
 
 ```text
 .playwright-mcp/
+.vscode/
 et GITHUB_TOKEN
 frontend/public/
 test-files/
@@ -376,10 +432,12 @@ test-files/
 ## 다음 세션 시작점
 
 1. `git status -sb`로 브랜치와 미추적 파일을 확인합니다.
-2. 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
-3. JPEG·PNG·WebP의 전체 요청과 응답 흐름을 학습합니다.
-4. PNG 형식 변환 승인과 해상도 축소 승인 상태가 이어지는 방식을 학습합니다.
-5. 실제 불편이 발견되기 전에는 새로운 기능을 추가하지 않습니다.
+2. Render 프론트엔드와 백엔드가 정상인지 확인합니다.
+3. 무료 Web Service가 잠든 뒤 첫 요청에는 cold start 지연이 있을 수 있음을
+   고려합니다.
+4. 코드를 변경하면 백엔드와 프론트엔드의 Render 자동 배포 결과를 확인합니다.
+5. 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
+6. 실제 불편이 발견되기 전에는 새로운 기능을 추가하지 않습니다.
 
 다음 세션에서도 `AGENTS.md` 원칙에 따라 코드를 작성하기 전에 목표, 수정 파일,
 요청부터 응답까지의 흐름과 새 개념을 먼저 설명합니다.
