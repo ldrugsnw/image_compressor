@@ -28,13 +28,27 @@ class ResizeRequiredError(Exception):
         self.suggested_size = suggested_size
 
 
-def _open_jpeg(image_bytes: bytes) -> Image.Image:
+def _open_supported_image(image_bytes: bytes) -> tuple[Image.Image, str]:
     try:
         with Image.open(BytesIO(image_bytes)) as uploaded_image:
-            if uploaded_image.format != "JPEG":
-                raise InvalidImageError("JPEG 파일만 업로드할 수 있습니다.")
+            image_format = uploaded_image.format
+            if image_format not in {"JPEG", "WEBP"}:
+                raise InvalidImageError(
+                    "JPEG 또는 정적 불투명 WebP 파일만 업로드할 수 있습니다."
+                )
+
+            if image_format == "WEBP" and getattr(
+                uploaded_image, "is_animated", False
+            ):
+                raise InvalidImageError("애니메이션 WebP는 업로드할 수 없습니다.")
 
             uploaded_image.load()
+
+            if image_format == "WEBP" and "A" in uploaded_image.getbands():
+                minimum_alpha, _ = uploaded_image.getchannel("A").getextrema()
+                if minimum_alpha < 255:
+                    raise InvalidImageError("투명 WebP는 업로드할 수 없습니다.")
+
             corrected_image = ImageOps.exif_transpose(uploaded_image)
 
             if corrected_image.mode != "RGB":
@@ -42,9 +56,9 @@ def _open_jpeg(image_bytes: bytes) -> Image.Image:
             else:
                 corrected_image = corrected_image.copy()
 
-            return corrected_image
+            return corrected_image, image_format
     except (UnidentifiedImageError, OSError, ValueError) as error:
-        raise InvalidImageError("손상되었거나 유효하지 않은 JPEG 파일입니다.") from error
+        raise InvalidImageError("손상되었거나 유효하지 않은 이미지 파일입니다.") from error
 
 
 def _encode_jpeg(image: Image.Image, quality: int) -> bytes:
@@ -67,14 +81,14 @@ def _suggest_resize(image: Image.Image, target_size_bytes: int) -> tuple[int, in
     raise TargetSizeUnreachableError("목표 용량이 너무 작아 압축할 수 없습니다.")
 
 
-def compress_jpeg(
+def compress_to_jpeg(
     image_bytes: bytes,
     target_size_bytes: int,
     allow_resize: bool = False,
 ) -> bytes:
-    image = _open_jpeg(image_bytes)
+    image, image_format = _open_supported_image(image_bytes)
 
-    if len(image_bytes) <= target_size_bytes:
+    if image_format == "JPEG" and len(image_bytes) <= target_size_bytes:
         return image_bytes
 
     lowest_quality_bytes = _encode_jpeg(image, MIN_QUALITY)

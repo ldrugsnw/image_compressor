@@ -8,7 +8,7 @@ from .compressor import (
     InvalidImageError,
     ResizeRequiredError,
     TargetSizeUnreachableError,
-    compress_jpeg,
+    compress_to_jpeg,
 )
 
 
@@ -67,7 +67,7 @@ async def compress_image(
         )
 
     try:
-        compressed_bytes = compress_jpeg(
+        compressed_bytes = compress_to_jpeg(
             image_bytes=image_bytes,
             target_size_bytes=target_size_kb * 1000,
             allow_resize=allow_resize,

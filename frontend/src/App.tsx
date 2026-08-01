@@ -10,6 +10,7 @@ import {
 
 const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
 const API_URL = "/api/images/compress";
+const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/webp"];
 
 
 type ResizeProposal = {
@@ -27,6 +28,14 @@ function formatFileSize(sizeInBytes: number) {
   }
 
   return `${(sizeInBytes / 1_000).toFixed(1)} KB`;
+}
+
+function isSupportedImageFile(file: File) {
+  if (SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+    return true;
+  }
+
+  return file.type === "" && /\.(jpe?g|webp)$/i.test(file.name);
 }
 
 function getErrorDetail(detail: unknown): string | null {
@@ -170,10 +179,10 @@ function App() {
 
     if (
       selectedFile &&
-      !["image/jpeg", "image/jpg"].includes(selectedFile.type)
+      !isSupportedImageFile(selectedFile)
     ) {
       setFile(null);
-      setError("JPEG 파일만 선택할 수 있습니다.");
+      setError("JPEG 또는 WebP 파일만 선택할 수 있습니다.");
       return false;
     }
 
@@ -215,7 +224,11 @@ function App() {
     try {
       const fileType =
         droppedFile.type ||
-        (/\.jpe?g$/i.test(droppedFile.name) ? "image/jpeg" : "");
+        (/\.jpe?g$/i.test(droppedFile.name)
+          ? "image/jpeg"
+          : /\.webp$/i.test(droppedFile.name)
+            ? "image/webp"
+            : "");
       const stableFile = new File(
         [await droppedFile.arrayBuffer()],
         droppedFile.name,
@@ -311,11 +324,11 @@ function App() {
   return (
     <main>
       <h1>Image Compressor</h1>
-      <p>JPEG 이미지 한 장을 원하는 최대 용량 이하로 압축합니다.</p>
+      <p>JPEG 또는 정적 불투명 WebP 한 장을 JPEG로 압축합니다.</p>
 
       <form onSubmit={handleSubmit}>
         <div className="file-field">
-          <label htmlFor="jpeg-file">JPEG 이미지</label>
+          <label htmlFor="image-file">JPEG 또는 WebP 이미지</label>
           <div
             className={`drop-zone${isDragging ? " dragging" : ""}`}
             onDragEnter={(event) => {
@@ -339,7 +352,7 @@ function App() {
             }}
             onDrop={handleDrop}
           >
-            <span>JPEG 이미지를 이곳에 끌어다 놓으세요.</span>
+            <span>JPEG 또는 WebP 이미지를 이곳에 끌어다 놓으세요.</span>
           </div>
           <div className="file-picker">
             <button
@@ -356,9 +369,9 @@ function App() {
           <input
             ref={fileInputRef}
             className="file-input"
-            id="jpeg-file"
+            id="image-file"
             type="file"
-            accept="image/jpeg,.jpg,.jpeg"
+            accept="image/jpeg,image/webp,.jpg,.jpeg,.webp"
             onChange={handleFileChange}
           />
         </div>
