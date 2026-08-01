@@ -10,7 +10,12 @@ import {
 
 const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
 const API_URL = "/api/images/compress";
-const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/webp"];
+const SUPPORTED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
 
 
 type ResizeProposal = {
@@ -19,6 +24,14 @@ type ResizeProposal = {
   originalHeight: number;
   suggestedWidth: number;
   suggestedHeight: number;
+  allowFormatConversion: boolean;
+};
+
+
+type FormatConversionProposal = {
+  message: string;
+  originalFormat: string;
+  resultFormat: string;
 };
 
 
@@ -35,7 +48,7 @@ function isSupportedImageFile(file: File) {
     return true;
   }
 
-  return file.type === "" && /\.(jpe?g|webp)$/i.test(file.name);
+  return file.type === "" && /\.(jpe?g|png|webp)$/i.test(file.name);
 }
 
 function getErrorDetail(detail: unknown): string | null {
@@ -82,7 +95,10 @@ function getErrorDetail(detail: unknown): string | null {
 }
 
 
-function getResizeProposal(detail: unknown): ResizeProposal | null {
+function getResizeProposal(
+  detail: unknown,
+  allowFormatConversion: boolean,
+): ResizeProposal | null {
   if (
     typeof detail !== "object" ||
     detail === null ||
@@ -108,6 +124,33 @@ function getResizeProposal(detail: unknown): ResizeProposal | null {
     originalHeight: detail.original_height,
     suggestedWidth: detail.suggested_width,
     suggestedHeight: detail.suggested_height,
+    allowFormatConversion,
+  };
+}
+
+
+function getFormatConversionProposal(
+  detail: unknown,
+): FormatConversionProposal | null {
+  if (
+    typeof detail !== "object" ||
+    detail === null ||
+    !("code" in detail) ||
+    detail.code !== "format_conversion_required" ||
+    !("message" in detail) ||
+    typeof detail.message !== "string" ||
+    !("original_format" in detail) ||
+    typeof detail.original_format !== "string" ||
+    !("result_format" in detail) ||
+    typeof detail.result_format !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    message: detail.message,
+    originalFormat: detail.original_format,
+    resultFormat: detail.result_format,
   };
 }
 
@@ -120,6 +163,8 @@ function App() {
   const [resizeProposal, setResizeProposal] = useState<ResizeProposal | null>(
     null,
   );
+  const [formatConversionProposal, setFormatConversionProposal] =
+    useState<FormatConversionProposal | null>(null);
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
   const [originalDimensions, setOriginalDimensions] = useState<{
     width: number;
@@ -164,6 +209,7 @@ function App() {
     setCompressedSize(null);
     setCompressedDimensions(null);
     setResizeProposal(null);
+    setFormatConversionProposal(null);
   }
 
   function selectFile(selectedFile: File | null) {
@@ -182,7 +228,7 @@ function App() {
       !isSupportedImageFile(selectedFile)
     ) {
       setFile(null);
-      setError("JPEG 또는 WebP 파일만 선택할 수 있습니다.");
+      setError("JPEG 또는 정적 불투명 PNG·WebP 파일만 선택할 수 있습니다.");
       return false;
     }
 
@@ -226,9 +272,11 @@ function App() {
         droppedFile.type ||
         (/\.jpe?g$/i.test(droppedFile.name)
           ? "image/jpeg"
-          : /\.webp$/i.test(droppedFile.name)
-            ? "image/webp"
-            : "");
+          : /\.png$/i.test(droppedFile.name)
+            ? "image/png"
+            : /\.webp$/i.test(droppedFile.name)
+              ? "image/webp"
+              : "");
       const stableFile = new File(
         [await droppedFile.arrayBuffer()],
         droppedFile.name,
@@ -246,31 +294,43 @@ function App() {
     }
   }
 
-  async function readErrorResponse(response: Response): Promise<{
+  async function readErrorResponse(
+    response: Response,
+    allowFormatConversion: boolean,
+  ): Promise<{
     message: string;
     resizeProposal: ResizeProposal | null;
+    formatConversionProposal: FormatConversionProposal | null;
   }> {
     try {
       const body = (await response.json()) as { detail?: unknown };
       return {
         message: getErrorDetail(body.detail) ?? "압축 요청에 실패했습니다.",
-        resizeProposal: getResizeProposal(body.detail),
+        resizeProposal: getResizeProposal(
+          body.detail,
+          allowFormatConversion,
+        ),
+        formatConversionProposal: getFormatConversionProposal(body.detail),
       };
     } catch {
       return {
         message: "압축 요청에 실패했습니다.",
         resizeProposal: null,
+        formatConversionProposal: null,
       };
     }
   }
 
-  async function requestCompression(allowResize: boolean) {
+  async function requestCompression(
+    allowResize: boolean,
+    allowFormatConversion: boolean,
+  ) {
     setError("");
     clearDownload();
 
     const parsedTargetSize = Number(targetSizeKb);
     if (!file) {
-      setError("JPEG 파일을 선택해 주세요.");
+      setError("JPEG 또는 정적 불투명 PNG·WebP 파일을 선택해 주세요.");
       return;
     }
     if (!Number.isInteger(parsedTargetSize) || parsedTargetSize <= 0) {
@@ -282,6 +342,10 @@ function App() {
     formData.append("file", file);
     formData.append("target_size_kb", String(parsedTargetSize));
     formData.append("allow_resize", String(allowResize));
+    formData.append(
+      "allow_format_conversion",
+      String(allowFormatConversion),
+    );
 
     setIsLoading(true);
     try {
@@ -291,10 +355,20 @@ function App() {
       });
 
       if (!response.ok) {
-        const responseError = await readErrorResponse(response);
+        const responseError = await readErrorResponse(
+          response,
+          allowFormatConversion,
+        );
 
         if (responseError.resizeProposal) {
           setResizeProposal(responseError.resizeProposal);
+          return;
+        }
+
+        if (responseError.formatConversionProposal) {
+          setFormatConversionProposal(
+            responseError.formatConversionProposal,
+          );
           return;
         }
 
@@ -318,17 +392,17 @@ function App() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void requestCompression(false);
+    void requestCompression(false, false);
   }
 
   return (
     <main>
       <h1>Image Compressor</h1>
-      <p>JPEG 또는 정적 불투명 WebP 한 장을 JPEG로 압축합니다.</p>
+      <p>JPEG 또는 정적 불투명 PNG·WebP 한 장을 JPEG로 압축합니다.</p>
 
       <form onSubmit={handleSubmit}>
         <div className="file-field">
-          <label htmlFor="image-file">JPEG 또는 WebP 이미지</label>
+          <label htmlFor="image-file">JPEG, PNG 또는 WebP 이미지</label>
           <div
             className={`drop-zone${isDragging ? " dragging" : ""}`}
             onDragEnter={(event) => {
@@ -352,7 +426,7 @@ function App() {
             }}
             onDrop={handleDrop}
           >
-            <span>JPEG 또는 WebP 이미지를 이곳에 끌어다 놓으세요.</span>
+            <span>JPEG, PNG 또는 WebP 이미지를 이곳에 끌어다 놓으세요.</span>
           </div>
           <div className="file-picker">
             <button
@@ -371,7 +445,7 @@ function App() {
             className="file-input"
             id="image-file"
             type="file"
-            accept="image/jpeg,image/webp,.jpg,.jpeg,.webp"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             onChange={handleFileChange}
           />
         </div>
@@ -405,6 +479,38 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
+      {formatConversionProposal && (
+        <section className="resize-confirmation" aria-live="polite">
+          <p>{formatConversionProposal.message}</p>
+          <p className="resize-dimensions">
+            {formatConversionProposal.originalFormat}
+            {" → "}
+            {formatConversionProposal.resultFormat}
+          </p>
+          <div className="resize-actions">
+            <button
+              className="resize-approve"
+              type="button"
+              disabled={isLoading}
+              onClick={() => void requestCompression(false, true)}
+            >
+              JPEG 변환 후 압축
+            </button>
+            <button
+              className="resize-reject"
+              type="button"
+              disabled={isLoading}
+              onClick={() => {
+                setFormatConversionProposal(null);
+                setError("JPEG 형식 변환을 취소했습니다.");
+              }}
+            >
+              거절
+            </button>
+          </div>
+        </section>
+      )}
+
       {resizeProposal && (
         <section className="resize-confirmation" aria-live="polite">
           <p>{resizeProposal.message}</p>
@@ -418,7 +524,12 @@ function App() {
               className="resize-approve"
               type="button"
               disabled={isLoading}
-              onClick={() => void requestCompression(true)}
+              onClick={() =>
+                void requestCompression(
+                  true,
+                  resizeProposal.allowFormatConversion,
+                )
+              }
             >
               해상도 축소 후 압축
             </button>

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from .compressor import (
+    FormatConversionRequiredError,
     InvalidImageError,
     ResizeRequiredError,
     TargetSizeUnreachableError,
@@ -50,6 +51,7 @@ async def compress_image(
     file: UploadFile = File(...),
     target_size_kb: int = Form(...),
     allow_resize: bool = Form(False),
+    allow_format_conversion: bool = Form(False),
 ) -> Response:
     if target_size_kb <= 0:
         raise HTTPException(
@@ -71,7 +73,18 @@ async def compress_image(
             image_bytes=image_bytes,
             target_size_bytes=target_size_kb * 1000,
             allow_resize=allow_resize,
+            allow_format_conversion=allow_format_conversion,
         )
+    except FormatConversionRequiredError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "format_conversion_required",
+                "message": str(error),
+                "original_format": error.original_format,
+                "result_format": "JPEG",
+            },
+        ) from error
     except ResizeRequiredError as error:
         original_width, original_height = error.original_size
         suggested_width, suggested_height = error.suggested_size

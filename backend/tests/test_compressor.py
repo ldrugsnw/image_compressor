@@ -3,7 +3,12 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from app.compressor import InvalidImageError, ResizeRequiredError, compress_to_jpeg
+from app.compressor import (
+    FormatConversionRequiredError,
+    InvalidImageError,
+    ResizeRequiredError,
+    compress_to_jpeg,
+)
 
 
 def create_test_jpeg() -> bytes:
@@ -18,6 +23,29 @@ def create_test_webp(mode: str = "RGB", alpha: int = 255) -> bytes:
     color = (255, 0, 0, alpha) if mode == "RGBA" else "red"
     image = Image.new(mode, (100, 100), color=color)
     image.save(buffer, format="WEBP")
+    return buffer.getvalue()
+
+
+def create_test_png(mode: str = "RGB", alpha: int = 255) -> bytes:
+    buffer = BytesIO()
+    color = (255, 0, 0, alpha) if mode == "RGBA" else "red"
+    image = Image.new(mode, (100, 100), color=color)
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def create_animated_png() -> bytes:
+    buffer = BytesIO()
+    first_frame = Image.new("RGB", (100, 100), color="red")
+    second_frame = Image.new("RGB", (100, 100), color="blue")
+    first_frame.save(
+        buffer,
+        format="PNG",
+        save_all=True,
+        append_images=[second_frame],
+        duration=100,
+        loop=0,
+    )
     return buffer.getvalue()
 
 
@@ -134,6 +162,75 @@ def test_resizes_webp_after_user_approval() -> None:
         assert compressed_image.format == "JPEG"
         assert compressed_image.width < 100
         assert compressed_image.height < 100
+
+
+@pytest.mark.parametrize("mode", ["RGB", "RGBA"])
+def test_converts_static_opaque_png_to_jpeg(mode: str) -> None:
+    png_bytes = create_test_png(mode=mode, alpha=255)
+
+    compressed_bytes = compress_to_jpeg(
+        image_bytes=png_bytes,
+        target_size_bytes=10_000,
+        allow_format_conversion=True,
+    )
+
+    assert len(compressed_bytes) <= 10_000
+    assert compressed_bytes != png_bytes
+
+    with Image.open(BytesIO(compressed_bytes)) as compressed_image:
+        assert compressed_image.format == "JPEG"
+
+
+def test_resizes_png_after_user_approval() -> None:
+    png_bytes = create_test_png()
+    target_size_bytes = 300
+
+    with pytest.raises(ResizeRequiredError):
+        compress_to_jpeg(
+            image_bytes=png_bytes,
+            target_size_bytes=target_size_bytes,
+            allow_format_conversion=True,
+        )
+
+    compressed_bytes = compress_to_jpeg(
+        image_bytes=png_bytes,
+        target_size_bytes=target_size_bytes,
+        allow_resize=True,
+        allow_format_conversion=True,
+    )
+
+    assert len(compressed_bytes) <= target_size_bytes
+
+    with Image.open(BytesIO(compressed_bytes)) as compressed_image:
+        assert compressed_image.format == "JPEG"
+        assert compressed_image.width < 100
+        assert compressed_image.height < 100
+
+
+def test_requires_approval_before_converting_png_to_jpeg() -> None:
+    with pytest.raises(FormatConversionRequiredError) as caught_error:
+        compress_to_jpeg(
+            image_bytes=create_test_png(),
+            target_size_bytes=10_000,
+        )
+
+    assert caught_error.value.original_format == "PNG"
+
+
+def test_rejects_transparent_png() -> None:
+    with pytest.raises(InvalidImageError, match="투명 PNG"):
+        compress_to_jpeg(
+            image_bytes=create_test_png(mode="RGBA", alpha=128),
+            target_size_bytes=10_000,
+        )
+
+
+def test_rejects_animated_png() -> None:
+    with pytest.raises(InvalidImageError, match="애니메이션 PNG"):
+        compress_to_jpeg(
+            image_bytes=create_animated_png(),
+            target_size_bytes=10_000,
+        )
 
 
 def test_rejects_transparent_webp() -> None:

@@ -4,12 +4,13 @@
 
 ## 프로젝트 현재 상태
 
-Image Compressor MVP와 정적 불투명 WebP 입력 확장 기능이 정상 동작합니다.
+Image Compressor MVP와 정적 불투명 PNG·WebP 입력 확장 기능이 정상 동작합니다.
 
-사용자는 JPEG 또는 정적 불투명 WebP 이미지 한 장을 파일 선택 또는 Drag &
-Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔드는 입력을 RGB로
-변환하고 JPEG quality 60~95 범위에서 목표 이하인 가장 높은 quality를
-찾습니다. quality 조절만으로 목표를 달성할 수 없으면
+사용자는 JPEG 또는 정적 불투명 PNG·WebP 이미지 한 장을 파일 선택 또는 Drag &
+Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. PNG는 사용자가 형식
+변환을 명시적으로 승인한 경우에만 JPEG로 변환합니다. 백엔드는 입력을 RGB로
+변환하고 JPEG quality 60~95 범위에서 목표 이하인 가장 높은 quality를 찾습니다.
+quality 조절만으로 목표를 달성할 수 없으면
 서버가 비율을 유지한 예상 축소 해상도를 제시하며, 사용자가 명시적으로 승인한
 경우에만 해상도를 줄여 다시 압축합니다.
 
@@ -19,6 +20,8 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 - JPEG Drag & Drop 및 iPad Files 앱 호환
 - 정적이며 투명 영역이 없는 WebP 입력
 - WebP 입력을 JPEG 결과로 변환
+- 정적이며 투명 영역이 없는 PNG 입력
+- 사용자 승인 후에만 PNG 입력을 JPEG 결과로 변환
 - 파일 선택 방식과 관계없이 선택한 파일명 표시
 - 최대 10MB 업로드 제한
 - 파일 선택 직후 원본 이미지 미리보기
@@ -37,7 +40,8 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 - 로그인 및 회원 관리
 - 데이터베이스와 압축 이력 저장
 - 사용자 이미지 클라우드 저장
-- PNG 입력
+- 투명 또는 애니메이션 PNG 입력
+- PNG 형식으로 결과를 반환하는 압축
 - 투명 또는 애니메이션 WebP 입력
 - 여러 이미지 동시 처리
 - AI 기능
@@ -53,11 +57,11 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 
 - `frontend/src/App.tsx`
   - 파일 선택 및 Drag & Drop 처리
-  - JPEG·WebP 형식과 10MB 제한 검증
+  - JPEG·PNG·WebP 형식과 10MB 제한 검증
   - 원본 및 압축 결과 Object URL 생명주기 관리
   - 원본 즉시 미리보기와 압축 전후 해상도 표시
   - `FormData` 생성과 압축 API 요청
-  - HTTP 409 축소안 해석과 승인·거절 처리
+  - HTTP 409 형식 변환·축소 제안 해석과 승인·거절 처리
   - 압축 결과 용량 표시와 다운로드
 - `frontend/src/styles.css`
   - Drag & Drop, 미리보기 및 결과 화면 스타일
@@ -67,43 +71,48 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 - `backend/app/main.py`
   - FastAPI 애플리케이션과 `/images/compress` 엔드포인트
   - 입력 검증, 10MB 제한, CORS와 JPEG HTTP 응답
+  - PNG의 JPEG 변환 승인 여부를 나타내는 `allow_format_conversion` 처리
   - 축소 승인 여부를 나타내는 `allow_resize` 처리
-  - 축소가 필요할 때 HTTP 409와 예상 해상도 반환
+  - 변환 또는 축소 승인이 필요할 때 HTTP 409 반환
 - `backend/app/compressor.py`
-  - 실제 JPEG·WebP 형식과 손상 이미지 확인
-  - WebP 애니메이션과 투명 픽셀 검사
+  - 실제 JPEG·PNG·WebP 형식과 손상 이미지 확인
+  - PNG·WebP 애니메이션과 투명 픽셀 검사
+  - PNG의 JPEG 변환 승인 확인
   - EXIF 방향 보정과 RGB 변환
   - JPEG quality 60~95 이진 탐색
   - 비율 유지 축소안 계산과 승인 후 리사이즈
 - `backend/tests/test_compressor.py`
-  - 메모리에서 테스트 JPEG와 WebP 생성
-  - JPEG 회귀 동작과 정적·투명·애니메이션 WebP 검증
+  - 메모리에서 테스트 JPEG, PNG와 WebP 생성
+  - JPEG 회귀 동작과 PNG·WebP 변환 및 거절 동작 검증
 
 ## 요청부터 응답까지의 흐름
 
-1. 사용자가 파일 선택 또는 Drag & Drop으로 JPEG나 WebP를 입력합니다.
-2. 프론트엔드는 JPEG·WebP 형식과 10MB 이하인지 확인합니다.
+1. 사용자가 파일 선택 또는 Drag & Drop으로 JPEG, PNG나 WebP를 입력합니다.
+2. 프론트엔드는 JPEG·PNG·WebP 형식과 10MB 이하인지 확인합니다.
 3. Drag & Drop 파일은 바이트를 새 `File` 객체로 복사해 안정적으로 보관합니다.
 4. 원본 Object URL을 만들고 이미지와 해상도를 즉시 표시합니다.
 5. 사용자가 목표 용량을 양의 정수 KB로 입력합니다.
-6. 프론트엔드는 `file`, `target_size_kb`, `allow_resize=false`를 `FormData`에
-   넣어 `POST /api/images/compress`를 요청합니다.
+6. 프론트엔드는 `file`, `target_size_kb`, `allow_resize=false`,
+   `allow_format_conversion=false`를 `FormData`에 넣어
+   `POST /api/images/compress`를 요청합니다.
 7. Vite 프록시가 `/api`를 제거하고 FastAPI의
    `POST /images/compress`로 전달합니다.
 8. 백엔드는 목표 KB를 1000배 하여 바이트 단위로 변환합니다.
-9. `compress_to_jpeg()`은 실제 JPEG·WebP 형식을 확인합니다. WebP는 정적이고
-   투명 픽셀이 없는 경우에만 RGB로 변환합니다.
-10. JPEG quality 60~95 범위에서 목표 이하인 가장 높은 quality를 이진
-    탐색합니다. WebP 입력도 결과는 JPEG입니다.
-11. 성공하면 백엔드는 `image/jpeg` 바이트를 반환합니다.
-12. quality 60으로도 목표를 달성할 수 없으면 비율을 유지하며 해상도를
+9. `compress_to_jpeg()`은 실제 JPEG·PNG·WebP 형식을 확인하고, PNG·WebP의
+   애니메이션과 투명 픽셀을 거절합니다.
+10. PNG는 변환 승인 전 HTTP 409와 형식 변경 정보를 반환합니다. 사용자가
+    승인하면 `allow_format_conversion=true`로 다시 요청합니다.
+11. JPEG quality 60~95 범위에서 목표 이하인 가장 높은 quality를 이진
+    탐색합니다. PNG·WebP 입력도 결과는 JPEG입니다.
+12. 성공하면 백엔드는 `image/jpeg` 바이트를 반환합니다.
+13. quality 60으로도 목표를 달성할 수 없으면 비율을 유지하며 해상도를
     90%씩 줄여 실제 JPEG 인코딩 결과가 목표 이하가 되는 크기를 찾습니다.
-13. 승인 전 요청에는 HTTP 409와 원본·예상 축소 해상도를 반환합니다.
-14. 프론트엔드는 예상 변경을 보여주고 승인 또는 거절 버튼을 제공합니다.
-15. 사용자가 승인하면 같은 파일과 목표에 `allow_resize=true`를 넣어 다시
+14. 승인 전 요청에는 HTTP 409와 원본·예상 축소 해상도를 반환합니다.
+15. 프론트엔드는 예상 변경을 보여주고 승인 또는 거절 버튼을 제공합니다.
+16. 사용자가 승인하면 같은 파일과 목표에 `allow_resize=true`를 넣어 다시
     요청합니다.
-16. 백엔드는 제안 해상도로 이미지를 줄이고 quality 60~95를 다시 탐색합니다.
-17. 프론트엔드는 결과 Blob으로 미리보기와 다운로드 URL을 만들고, 압축 전후
+17. 백엔드는 제안 해상도로 이미지를 줄이고 quality 60~95를 다시 탐색합니다.
+18. 프론트엔드는 결과 Blob으로 미리보기와 다운로드 URL을 만들고, 압축 전후
     용량 및 해상도를 표시합니다.
 
 ## API
@@ -114,15 +123,32 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 
 요청 필드:
 
-- `file`: JPEG 또는 정적 불투명 WebP 한 장
+- `file`: JPEG 또는 정적 불투명 PNG·WebP 한 장
 - `target_size_kb`: 0보다 큰 정수
 - `allow_resize`: 선택 필드, 기본값 `false`
+- `allow_format_conversion`: PNG의 JPEG 변환 승인, 기본값 `false`
 
 일반 성공 응답:
 
 - 상태: HTTP 200
 - 형식: `image/jpeg`
 - 내용: 목표 용량 이하의 JPEG 바이트
+
+PNG 형식 변환 승인 필요 응답:
+
+```json
+{
+  "detail": {
+    "code": "format_conversion_required",
+    "message": "PNG 파일은 JPEG로 변환되며 화질이 달라질 수 있습니다.",
+    "original_format": "PNG",
+    "result_format": "JPEG"
+  }
+}
+```
+
+- 상태: HTTP 409
+- `allow_format_conversion=true`인 재요청에서만 JPEG로 변환합니다.
 
 해상도 축소 승인 필요 응답:
 
@@ -147,7 +173,9 @@ Drop으로 입력하고 목표 용량(KB)을 지정할 수 있습니다. 백엔�
 - 목표 용량이 0 이하
 - 빈 파일
 - 10MB 초과
-- JPEG 또는 WebP가 아닌 파일
+- JPEG, PNG 또는 WebP가 아닌 파일
+- 투명 PNG
+- 애니메이션 PNG
 - 투명 WebP
 - 애니메이션 WebP
 - 손상된 이미지
@@ -222,6 +250,25 @@ ce2ca7a test: JPEG 압축 알고리즘 테스트 추가
 자동 테스트는 정적 RGB·불투명 RGBA WebP 변환, 승인 기반 해상도 축소와
 투명·애니메이션 WebP 거절을 검증합니다.
 
+관련 커밋:
+
+```text
+601cf1c docs: 프로젝트 구현 범위와 문서 우선순위 정리
+30a4fed feat: 정적 불투명 WebP 입력 지원
+```
+
+### 승인 기반 정적 불투명 PNG 입력
+
+프론트엔드는 PNG 파일 선택 및 Drag & Drop을 허용합니다. 백엔드는 실제 PNG
+형식, 애니메이션과 투명 픽셀을 검사합니다. 정적 불투명 PNG라도 자동으로
+변환하지 않고 먼저 HTTP 409로 PNG에서 JPEG로 형식이 바뀐다는 사실을
+알립니다. 사용자가 승인한 경우에만 `allow_format_conversion=true`로 다시
+요청하여 JPEG로 압축합니다.
+
+형식 변환 승인과 해상도 축소 승인은 서로 독립적이며, 둘 다 필요한 경우 최종
+요청에서 두 승인 값을 함께 전달합니다. 투명 PNG와 APNG는 거절하고 결과 형식은
+항상 JPEG입니다.
+
 ## 검증 결과
 
 백엔드:
@@ -231,10 +278,10 @@ cd /workspaces/image_compressor/backend
 python -m pytest -v
 ```
 
-현재 아홉 테스트가 모두 통과합니다.
+현재 열다섯 테스트가 모두 통과합니다.
 
 ```text
-9 passed
+15 passed
 ```
 
 프론트엔드:
@@ -256,6 +303,24 @@ JPEG 선택 또는 Drag & Drop
 → 거절 시 압축하지 않음
 → 승인 시 비율 유지 해상도 축소
 → 목표 용량 이하 결과, 미리보기 및 다운로드
+```
+
+사용자가 다운로드용 WebP 테스트 파일로 다음 동작도 직접 확인했습니다.
+
+```text
+정적 불투명 WebP → JPEG 압축 및 다운로드 성공
+투명 WebP → 투명 WebP 오류
+애니메이션 WebP → 애니메이션 WebP 오류
+```
+
+사용자가 PNG로 다음 동작도 직접 확인했습니다.
+
+```text
+정적 불투명 PNG 선택 및 미리보기
+→ JPEG 형식 변환 승인 또는 거절
+→ 승인 후 JPEG 압축 및 다운로드
+→ 필요한 경우 별도의 해상도 축소 승인
+→ 투명 PNG와 APNG 오류
 ```
 
 ## 실행 방법
@@ -282,34 +347,24 @@ npm run dev -- --host 0.0.0.0
 
 ## Git 상태
 
-현재 브랜치는 `main`이며 GitHub의 `origin/main`과 같은 커밋에서 작업을
-시작했습니다.
+현재 브랜치는 `main`입니다. PNG 기능 커밋에 포함하지 않은 기존 추적 변경과
+미추적 항목은 다음과 같습니다.
 
 ```text
-fa9b0aa docs: 작업 인수인계 최신화
-```
-
-정적 불투명 WebP 입력 지원과 `AGENTS.md` 정리는 아직 커밋하지 않은 변경입니다.
-기존 미추적 항목은 다음과 같습니다.
-
-```text
+frontend/src/App.tsx
+frontend/src/styles.css
 .playwright-mcp/
 et GITHUB_TOKEN
+frontend/public/
 test-files/
 ```
 
-이 항목들은 기능 또는 문서 커밋에 포함하지 않았습니다. 다음 작업에서도 용도를
-확인하지 않고 자동으로 수정하거나 커밋하지 않습니다.
+`frontend/public/`에는 사용자가 내려받아 수동 검증한 테스트 파일과 다운로드
+페이지가 있습니다. 이 항목들과 기존 `App.tsx`, `styles.css`의 10MB 안내
+변경은 PNG 기능 커밋에 포함하지 않습니다. 다음 작업에서도 사용자의 요청 없이
+수정하거나 커밋하지 않습니다.
 
 ## 다음 확장 후보
-
-### 우선순위 1: PNG 입력 정책 결정
-
-PNG는 투명도와 JPEG 변환 시 배경색 처리 정책을 먼저 결정해야 합니다. 다음
-단계에서도 한 형식만 다루며, PNG 지원 범위를 설계하고 사용자가 흐름을 이해한
-뒤 구현합니다.
-
-### 이후 후보
 
 1. 여러 이미지의 목록, 개별 진행 상태, 오류 및 다운로드 설계
 
@@ -320,9 +375,8 @@ PNG는 투명도와 JPEG 변환 시 배경색 처리 정책을 먼저 결정해�
 
 1. `git status -sb`로 브랜치와 미추적 파일을 확인합니다.
 2. 백엔드 테스트와 프론트엔드 빌드를 실행합니다.
-3. JPEG·WebP 기본 압축과 승인 기반 해상도 축소 흐름을 재확인합니다.
-4. PNG의 투명도와 JPEG 배경색 처리 정책을 먼저 설계합니다.
-5. 사용자가 흐름을 이해한 뒤 한 번에 하나의 작은 변경만 구현합니다.
+3. JPEG·PNG·WebP 기본 압축과 두 승인 흐름을 재확인합니다.
+4. 사용자가 흐름을 이해한 뒤 한 번에 하나의 작은 변경만 구현합니다.
 
 다음 세션에서도 `AGENTS.md` 원칙에 따라 코드를 작성하기 전에 목표, 수정 파일,
 요청부터 응답까지의 흐름과 새 개념을 먼저 설명합니다.

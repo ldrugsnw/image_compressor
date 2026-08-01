@@ -8,7 +8,7 @@ MAX_QUALITY = 95
 
 
 class InvalidImageError(Exception):
-    """Raised when uploaded bytes are not a valid JPEG image."""
+    """Raised when uploaded bytes are not a supported image."""
 
 
 class TargetSizeUnreachableError(Exception):
@@ -28,26 +28,46 @@ class ResizeRequiredError(Exception):
         self.suggested_size = suggested_size
 
 
+class FormatConversionRequiredError(Exception):
+    """Raised when converting an input image to JPEG requires approval."""
+
+    def __init__(self, original_format: str) -> None:
+        super().__init__(
+            f"{original_format} 파일은 JPEG로 변환되며 화질이 달라질 수 있습니다."
+        )
+        self.original_format = original_format
+
+
 def _open_supported_image(image_bytes: bytes) -> tuple[Image.Image, str]:
     try:
         with Image.open(BytesIO(image_bytes)) as uploaded_image:
             image_format = uploaded_image.format
-            if image_format not in {"JPEG", "WEBP"}:
+            if image_format not in {"JPEG", "PNG", "WEBP"}:
                 raise InvalidImageError(
-                    "JPEG 또는 정적 불투명 WebP 파일만 업로드할 수 있습니다."
+                    "JPEG 또는 정적 불투명 PNG·WebP 파일만 업로드할 수 있습니다."
                 )
 
-            if image_format == "WEBP" and getattr(
+            format_name = "WebP" if image_format == "WEBP" else image_format
+
+            if image_format in {"PNG", "WEBP"} and getattr(
                 uploaded_image, "is_animated", False
             ):
-                raise InvalidImageError("애니메이션 WebP는 업로드할 수 없습니다.")
+                raise InvalidImageError(
+                    f"애니메이션 {format_name}는 업로드할 수 없습니다."
+                )
 
             uploaded_image.load()
 
-            if image_format == "WEBP" and "A" in uploaded_image.getbands():
-                minimum_alpha, _ = uploaded_image.getchannel("A").getextrema()
+            if image_format in {"PNG", "WEBP"} and (
+                "A" in uploaded_image.getbands()
+                or "transparency" in uploaded_image.info
+            ):
+                alpha_channel = uploaded_image.convert("RGBA").getchannel("A")
+                minimum_alpha, _ = alpha_channel.getextrema()
                 if minimum_alpha < 255:
-                    raise InvalidImageError("투명 WebP는 업로드할 수 없습니다.")
+                    raise InvalidImageError(
+                        f"투명 {format_name}는 업로드할 수 없습니다."
+                    )
 
             corrected_image = ImageOps.exif_transpose(uploaded_image)
 
@@ -85,8 +105,12 @@ def compress_to_jpeg(
     image_bytes: bytes,
     target_size_bytes: int,
     allow_resize: bool = False,
+    allow_format_conversion: bool = False,
 ) -> bytes:
     image, image_format = _open_supported_image(image_bytes)
+
+    if image_format == "PNG" and not allow_format_conversion:
+        raise FormatConversionRequiredError(original_format="PNG")
 
     if image_format == "JPEG" and len(image_bytes) <= target_size_bytes:
         return image_bytes
