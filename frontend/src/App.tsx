@@ -9,7 +9,9 @@ import {
 
 
 const MAX_UPLOAD_SIZE_BYTES = 10_000_000;
-const API_URL = "/api/images/compress";
+const API_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/images/compress`
+  : "/api/images/compress";
 const SUPPORTED_IMAGE_TYPES = [
   "image/jpeg",
   "image/jpg",
