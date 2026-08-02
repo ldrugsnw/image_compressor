@@ -41,7 +41,11 @@ class FormatConversionRequiredError(Exception):
 def _open_supported_image(image_bytes: bytes) -> tuple[Image.Image, str]:
     try:
         with Image.open(BytesIO(image_bytes)) as uploaded_image:
-            image_format = uploaded_image.format
+            # Some iPhone JPEG files are detected as MPO because they include
+            # an additional image. The first image still follows the JPEG flow.
+            image_format = (
+                "JPEG" if uploaded_image.format == "MPO" else uploaded_image.format
+            )
             if image_format not in {"JPEG", "PNG", "WEBP"}:
                 raise InvalidImageError(
                     "JPEG 또는 정적 불투명 PNG·WebP 파일만 업로드할 수 있습니다."
