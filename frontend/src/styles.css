@@ -89,6 +89,33 @@ button:disabled {
   cursor: wait;
 }
 
+.compress-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.loading-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 0.1875rem solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-message {
+  color: #5f6368;
+  text-align: center;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .file-info {
   margin: -0.75rem 0 0;
   color: #5f6368;

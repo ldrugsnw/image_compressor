@@ -475,10 +475,17 @@ function App() {
           />
         </label>
 
-        <button type="submit" disabled={isLoading}>
+        <button className="compress-button" type="submit" disabled={isLoading}>
+          {isLoading && <span className="loading-spinner" aria-hidden="true" />}
           {isLoading ? "압축 중..." : "압축하기"}
         </button>
       </form>
+
+      {isLoading && (
+        <p className="loading-message" role="status" aria-live="polite">
+          서버가 이미지를 압축하고 있습니다. 잠시만 기다려 주세요.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 
