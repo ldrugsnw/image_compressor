@@ -429,19 +429,19 @@ function App() {
             }}
             onDrop={handleDrop}
           >
-            <span>JPEG, PNG 또는 WebP 이미지를 이곳에 끌어다 놓으세요.</span>
-          </div>
-          <div className="file-picker">
-            <button
-              className="file-select-button"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              파일 선택
-            </button>
-            <span className="selected-file-name">
-              {file?.name ?? "선택한 파일 없음"}
-            </span>
+            <span>이미지를 이곳에 끌어다 놓거나</span>
+            <div className="file-picker">
+              <button
+                className="file-select-button"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                파일 선택
+              </button>
+              <span className="selected-file-name">
+                {file?.name ?? "선택한 파일 없음"}
+              </span>
+            </div>
           </div>
           <input
             ref={fileInputRef}
@@ -610,6 +610,11 @@ function App() {
           </a>
         </>
       )}
+
+      <p className="privacy-note">
+        업로드한 이미지는 서버에 저장하지 않으며, 압축 요청 중에만 처리됩니다.
+        안심하고 사용하세요.
+      </p>
     </main>
   );
 }

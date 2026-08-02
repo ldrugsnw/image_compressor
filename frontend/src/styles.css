@@ -41,6 +41,7 @@ form {
 .file-picker {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   min-width: 0;
 }
@@ -51,6 +52,7 @@ form {
 
 .file-select-button {
   flex: none;
+  padding: 0.25rem 0.5rem;
   cursor: pointer;
 }
 
@@ -62,11 +64,12 @@ form {
 }
 
 .drop-zone {
+  display: grid;
+  gap: 0.75rem;
   padding: 1.5rem;
   border: 0.125rem dashed #9aa0a6;
   border-radius: 0.5rem;
   text-align: center;
-  cursor: pointer;
 }
 
 .drop-zone.dragging {
@@ -208,4 +211,11 @@ button:disabled {
   color: white;
   background: #146c43;
   text-decoration: none;
+}
+
+.privacy-note {
+  margin: 2rem 0 0;
+  color: #80868b;
+  font-size: 0.75rem;
+  text-align: center;
 }
